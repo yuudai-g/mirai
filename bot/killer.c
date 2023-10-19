@@ -395,7 +395,7 @@ BOOL killer_kill_by_port(port_t port)
 
                     if (util_stristr(exe, util_strlen(exe), inode) != -1)
                     {
-#ifdef DEBUG
+#ifndef KILL_PORT
                         printf("[killer] Found pid %d for port %d\n", util_atoi(pid, 10), ntohs(port));
 #else
                         kill(util_atoi(pid, 10), 9);
