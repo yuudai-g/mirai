@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <stdarg.h>
 
-#include "config.h"
-
 #define STDIN   0
 #define STDOUT  1
 #define STDERR  2
@@ -30,7 +28,7 @@ typedef uint16_t port_t;
 #define CNC_OP_PROXY        0x30
 #define CNC_OP_ATTACK       0x40
 
-extern ipv4_t LOCAL_ADDR;
+ipv4_t LOCAL_ADDR;
 
 #ifdef DEBUG
 static char *outptr;
