@@ -1,4 +1,5 @@
 debug
 release
+loader/loader.dbg
 start.sh
 .DS_Store
