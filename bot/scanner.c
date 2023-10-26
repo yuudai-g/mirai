@@ -2,9 +2,7 @@
 
 #ifdef MIRAI_TELNET
 
-#ifdef DEBUG
 #include <stdio.h>
-#endif
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/socket.h>

